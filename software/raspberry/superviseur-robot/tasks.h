@@ -66,6 +66,16 @@ private:
     ComRobot robot;
     int robotStarted = 0;
     int move = MESSAGE_ROBOT_STOP;
+    int compteurEchec=0;
+    bool withWD = false;
+    /*Fonctionnalités 14 à 19
+    bool allowCapture = false;
+    Image *image = null;
+    bool allowCapturePosition = false;
+    Arena *arena = null;
+    bool arenaIsCorrect = flase; 
+     */
+    
     
     /**********************************************************************/
     /* Tasks                                                              */
@@ -73,9 +83,13 @@ private:
     RT_TASK th_server;
     RT_TASK th_sendToMon;
     RT_TASK th_receiveFromMon;
-    RT_TASK th_openComRobot;
+    RT_TASK th_manageComRobot;
     RT_TASK th_startRobot;
+    RT_TASK th_startWDReloader;
     RT_TASK th_move;
+    RT_TASK th_battery;
+    RT_TASK th_resetSupervisor;
+    RT_TASK th_resetRobot;
     
     /**********************************************************************/
     /* Mutex                                                              */
@@ -84,15 +98,38 @@ private:
     RT_MUTEX mutex_robot;
     RT_MUTEX mutex_robotStarted;
     RT_MUTEX mutex_move;
+    RT_MUTEX mutex_compteurEchec;
+    RT_MUTEX mutex_withWD;
+    /* Fonctionnalités 14 à 19
+    RT_MUTEX mutex_allowCapture;
+    RT_MUTEX mutex_image;
+    RT_MUTEX mutex_allowCapturePosition;
+    RT_MUTEX mutex_arena;
+    RT_MUTEX mutex_arenaIsCorrect;
+    */
 
     /**********************************************************************/
     /* Semaphores                                                         */
     /**********************************************************************/
     RT_SEM sem_barrier;
-    RT_SEM sem_openComRobot;
     RT_SEM sem_serverOk;
+    RT_SEM sem_openComRobot;
+    RT_SEM sem_closeComRobot;
+    RT_SEM sem_comRobotClosed;
     RT_SEM sem_startRobot;
-
+    RT_SEM sem_resetSupervisor;
+    RT_SEM sem_resetRobot;
+    RT_SEM sem_startWDReloader;
+    RT_SEM sem_acceptNextMonitor;
+    /* Fonctionnalités 14 à 19
+    RT_SEM sem_openCamera;
+    RT_SEM sem_closeCamera;
+    RT_SEM sem_findArena;
+    RT_SEM sem_comfirmArena;
+    RT_SEM sem_findPosition;
+    RT_SEM sem_stopFindPosition;
+    */
+    
     /**********************************************************************/
     /* Message queues                                                     */
     /**********************************************************************/
@@ -120,7 +157,7 @@ private:
     /**
      * @brief Thread opening communication with the robot.
      */
-    void OpenComRobot(void *arg);
+    void ManageComRobotTask(void *arg);
 
     /**
      * @brief Thread starting the communication with the robot.
@@ -128,9 +165,36 @@ private:
     void StartRobotTask(void *arg);
     
     /**
+    * @brief Thread in charge of reloading Robot's Watchdog.
+    */
+    void StartWDReloaderTask(void *arg);
+    
+    /**
      * @brief Thread handling control of the robot.
      */
     void MoveTask(void *arg);
+    
+    /**
+    * @brief Thread that refresh the current robot's battery level the robot.
+    */
+   void BatteryTask(void *arg);
+
+   /**
+    * @brief Thread that resets the supervisor (the supervisor get back to inital state)
+    */
+   void ResetSupervisorTask(void *arg);
+
+   /**
+    * @brief Thread that stops and resets the robot(the supervisor get back to pre-start state)
+    */
+   void ResetRobotTask(void *arg);
+
+   /**
+    * Checks the robots answer (after robot.write), changes the error counter
+    * Verify that the comunication with the robot stay alive (less than 3 answer errors in a row)
+    * @param reponse Answer Message to be checked
+    */
+   void CheckRobotAnswers(Message *reponse);
     
     /**********************************************************************/
     /* Queue services                                                     */
