@@ -447,27 +447,27 @@ void Tasks::ManageComRobotTask(void *arg) {
         Message * msgSend;
         if (status < 0) {
             msgSend = new Message(MESSAGE_ANSWER_NACK);
+            WriteInQueue(&q_messageToMon, msgSend); // msgSend will be deleted by sendToMon
         } else {
             msgSend = new Message(MESSAGE_ANSWER_ACK);
-        }
-        WriteInQueue(&q_messageToMon, msgSend); // msgSend will be deleted by sendToMon
+            WriteInQueue(&q_messageToMon, msgSend); // msgSend will be deleted by sendToMon
+            /*ComRobot is opened, wait on the close of the commuictation*/
         
-        /*ComRobot is opened, wait on the close of the commuictation*/
-        
-        rt_sem_p(&sem_closeComRobot, TM_INFINITE);
-        rt_sem_v(&sem_resetRobot);
-        cout << "Close serial com (";
-        rt_mutex_acquire(&mutex_robot, TM_INFINITE);
-        status = robot.Close();
-        rt_mutex_release(&mutex_robot);
-        cout << status;
-        cout << ")" << endl << flush;
-         if (status < 0) {
-            msgSend = new Message(MESSAGE_ANSWER_NACK);
-        } else {
-            msgSend = new Message(MESSAGE_ANSWER_ACK);
-        }
-        WriteInQueue(&q_messageToMon, msgSend); // msgSend will be deleted by sendToMon
+            rt_sem_p(&sem_closeComRobot, TM_INFINITE);
+            rt_sem_v(&sem_resetRobot);
+            cout << "Close serial com (";
+            rt_mutex_acquire(&mutex_robot, TM_INFINITE);
+            status = robot.Close();
+            rt_mutex_release(&mutex_robot);
+            cout << status;
+            cout << ")" << endl << flush;
+             if (status < 0) {
+                msgSend = new Message(MESSAGE_ANSWER_NACK);
+            } else {
+                msgSend = new Message(MESSAGE_ANSWER_ACK);
+            }
+            WriteInQueue(&q_messageToMon, msgSend); // msgSend will be deleted by sendToMon
+        }        
     }
 }
 
@@ -536,19 +536,24 @@ void Tasks::StartWDReloaderTask(void *arg) {
     /**************************************************************************************/
     while(1)
     {
-        int localRobotStarted = 2;
+        
         rt_sem_p(&sem_startWDReloader, TM_INFINITE);
         rt_task_set_periodic(NULL, TM_NOW, 1000000000);
-        while (localRobotStarted==2) {
+        while (1) {
             rt_task_wait_period(NULL);
+            rt_mutex_acquire(&mutex_robotStarted, TM_INFINITE);
+            if(robotStarted!=2)
+            {
+                rt_mutex_release(&mutex_robotStarted);
+                break;
+            }
+            rt_mutex_release(&mutex_robotStarted);
             cout << "Periodic WatchDog Reload update";
             rt_mutex_acquire(&mutex_robot, TM_INFINITE);
             robot.Write(robot.ReloadWD());
             rt_mutex_release(&mutex_robot);
             cout << endl << flush; 
-            rt_mutex_acquire(&mutex_robotStarted, TM_INFINITE);
-            localRobotStarted = robotStarted;
-            rt_mutex_release(&mutex_robotStarted);
+            
         }
     }
     
@@ -678,17 +683,16 @@ void Tasks::ResetRobotTask(void *arg) {
     while(1)
     {
         rt_sem_p(&sem_resetRobot, TM_INFINITE);
-        
-        rt_mutex_acquire(&mutex_move, TM_INFINITE);
-        move = MESSAGE_ROBOT_STOP;
-        rt_mutex_release(&mutex_move);
         rt_mutex_acquire(&mutex_robotStarted, TM_INFINITE);
         robotStarted = 0;
         rt_mutex_release(&mutex_robotStarted);
         rt_mutex_acquire(&mutex_robot, TM_INFINITE);
-        reponse = robot.Write(robot.Stop());
+        //reponse = robot.Write(robot.Stop());
         reponse = robot.Write(robot.Reset());
         rt_mutex_release(&mutex_robot);
+        rt_mutex_acquire(&mutex_move, TM_INFINITE);
+        move = MESSAGE_ROBOT_STOP;
+        rt_mutex_release(&mutex_move);
         rt_mutex_acquire(&mutex_withWD, TM_INFINITE);
         withWD = false;
         rt_mutex_release(&mutex_withWD);
